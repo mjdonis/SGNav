@@ -1,6 +1,7 @@
 # simple_navigation_goals
 
 ```
+sudo apt install ros-melodic-navigation
 mkdir -p ~/bot_ws/src
 cd ~/bot_ws/src
 git glone git@github.com:mjd-x/simple_navigation_goals.git
