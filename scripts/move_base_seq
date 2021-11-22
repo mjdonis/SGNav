@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-# license removed for brevity
-__author__ = 'fiorellasibona'
 import rospy
 import math
 
@@ -14,32 +12,36 @@ from tf.transformations import quaternion_from_euler
 class MoveBaseSeq():
 
     def __init__(self):
-
+        # inicia el nodo
         rospy.init_node('move_base_sequence')
+        # toma puntos fijados en el launch
         points_seq = rospy.get_param('move_base_seq/p_seq')
-        # Only yaw angle required (no ratotions around x and y axes) in deg:
+        # toma angulos fijados en el launch
         yaweulerangles_seq = rospy.get_param('move_base_seq/yea_seq')
-        #List of goal quaternions:
+        # lista de quaternions (orientacion)
         quat_seq = list()
-        #List of goal poses:
+        # lista de poses
         self.pose_seq = list()
+        # contador para ver cuantas poses ya mando, y si faltan
         self.goal_cnt = 0
         for yawangle in yaweulerangles_seq:
-            #Unpacking the quaternion tuple and passing it as arguments to Quaternion message constructor
+            # * -> unpacker, extrae valor de la lista
+            # crea y agrega a la lista de quaternions los angulos en el param
             quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle*math.pi/180, axes='sxyz'))))
+        # define que un punto tiene x,y,z (3)
         n = 3
-        # Returns a list of lists [[point1], [point2],...[pointn]]
+        # construye lista de puntos goal [[point1], [point2],...[pointn]] a partir de los puntos en el param
         points = [points_seq[i:i+n] for i in range(0, len(points_seq), n)]
         rospy.loginfo(str(points))
         for point in points:
-            #Exploit n variable to cycle in quat_seq
+            # crea la secuencia de poses goal (pose = point + quaternion)
+            # cicla la lista de puntos (for) y la de quaternions (usando n para el indice)
             self.pose_seq.append(Pose(Point(*point),quat_seq[n-3]))
             n += 1
-        #rospy.loginfo(str(self.pose_seq))
-        #Create action client
+        # Crea action client: 'move_base' es el namespace de los topics
+        # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
         self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
         rospy.loginfo("Waiting for move_base action server...")
-        #wait = self.client.wait_for_server(rospy.Duration(5.0))
         wait = self.client.wait_for_server()
         if not wait:
             rospy.logerr("Action server not available!")
@@ -48,22 +50,30 @@ class MoveBaseSeq():
         rospy.loginfo("Connected to move base server")
         rospy.loginfo("Starting goals achievements ...")
         self.movebase_client()
+        
+    # SimpleActionClient tiene 3 estados: 
+    # activo (el servidor esta procesando el goal actual)
+    # pendiente (los goals que todavia no se procesaron, estan "en cola")
+    # terminado (ya se procesaron todos los goals)
 
     def active_cb(self):
         rospy.loginfo("Goal pose "+str(self.goal_cnt+1)+" is now being processed by the Action Server...")
 
     def feedback_cb(self, feedback):
-        #rospy.loginfo("Feedback for goal "+str(self.goal_cnt)+": "+str(feedback))
         rospy.loginfo("Feedback for goal pose "+str(self.goal_cnt+1)+" received")
 
     def done_cb(self, status, result):
+        # si termino de procesar un goal, lo tomo como completado y paso al siguiente
         self.goal_cnt += 1
-    # Reference for terminal status values: http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
+        # Reference for terminal status values: http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
+        # Verifica el estado en la response
         if status == 2:
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" received a cancel request after it started executing, completed execution!")
 
         if status == 3:
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached") 
+            # Si llego al goal, pasa al siguiente
+            # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
             if self.goal_cnt< len(self.pose_seq):
                 next_goal = MoveBaseGoal()
                 next_goal.target_pose.header.frame_id = "map"
@@ -91,7 +101,7 @@ class MoveBaseSeq():
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" received a cancel request before it started executing, successfully cancelled!")
 
     def movebase_client(self):
-    #for pose in pose_seq:   
+        # Crea goal y lo manda al servidor
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now() 
