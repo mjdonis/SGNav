@@ -1,0 +1,152 @@
+#!/usr/bin/env python
+
+import rospy
+import actionlib
+from actionlib_msgs.msg import *
+from geometry_msgs.msg import Pose, Point, Quaternion, Twist
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from tf.transformations import quaternion_from_euler
+from visualization_msgs.msg import Marker
+from math import radians, pi
+
+class MoveBaseSquare():
+    def __init__(self):
+        # inicializa el nodo
+        rospy.init_node('nav_test', anonymous=False)
+        
+        rospy.on_shutdown(self.shutdown)
+        
+        # Fija largo del cuadrado
+        square_size = rospy.get_param("~square_size", 1.0) # meters
+        
+        # Lista para quaternions (orientaciones)
+        quaternions = list()
+        
+        # Define las orientaciones de las esquinas en radianes
+        euler_angles = (pi/2, pi, 3*pi/2, 0)
+        
+        # Convierte los angulos en quaternions
+        for angle in euler_angles:
+            q_angle = quaternion_from_euler(0, 0, angle, axes='sxyz')
+            q = Quaternion(*q_angle)
+            quaternions.append(q)
+        
+        # Lista para las poses waypoint
+        waypoints = list()
+        
+        # Agrega los waypoints a la lista para que haga un cuadrado, cada uno es una Pose
+        # Pose = Point (ubicacion) + Quaternion (orientacion)
+        # Todo en referencia al punto inicial
+        waypoints.append(Pose(Point(square_size, 0.0, 0.0), quaternions[0]))
+        waypoints.append(Pose(Point(square_size, square_size, 0.0), quaternions[1]))
+        waypoints.append(Pose(Point(0.0, square_size, 0.0), quaternions[2]))
+        waypoints.append(Pose(Point(0.0, 0.0, 0.0), quaternions[3]))
+        
+        # Inicializa los markers de visualizacion de rviz
+        self.init_markers()
+        
+        # Pone un marker en cada waypoint       
+        for waypoint in waypoints:           
+            p = Point()
+            p = waypoint.position
+            self.markers.points.append(p)
+            
+        # Publisher to manually control the robot (e.g. to stop it)
+        self.cmd_vel_pub = rospy.Publisher('cmd_vel', Twist)
+        
+        # Subscribe to the move_base action server
+        self.move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+        
+        rospy.loginfo("Waiting for move_base action server...")
+        
+        # Wait 60 seconds for the action server to become available
+        self.move_base.wait_for_server(rospy.Duration(60))
+        
+        rospy.loginfo("Connected to move base server")
+        rospy.loginfo("Starting navigation test")
+        
+        # Contador para los waypoints
+        i = 0
+        
+        # ciclar la lista de waypoints
+        while i < 4 and not rospy.is_shutdown():
+            # update del marker
+            self.marker_pub.publish(self.markers)
+            
+            # inicializar el goal para el waypoint
+            goal = MoveBaseGoal()
+            
+            # map frame del goal
+            goal.target_pose.header.frame_id = 'map'
+            
+            # timestamp del goal
+            goal.target_pose.header.stamp = rospy.Time.now()
+            
+            # fija el waypoint actual como goal pose
+            goal.target_pose.pose = waypoints[i]
+            
+            # mover al robot al goal
+            self.move(goal)
+            
+            i += 1
+        
+    def move(self, goal):
+            # Manda el goal al servidor MoveBaseAction
+            self.move_base.send_goal(goal)
+            
+            # Espera 12 minutos a que llegue
+            finished_within_time = self.move_base.wait_for_result(rospy.Duration(120)) 
+            
+            # Si no llega en 2 minutos, cortar todo
+            if not finished_within_time:
+                self.move_base.cancel_goal()
+                rospy.loginfo("Timed out achieving goal")
+            else:
+                # Llego al goal
+                state = self.move_base.get_state()
+                if state == GoalStatus.SUCCEEDED:
+                    rospy.loginfo("Goal succeeded!")
+                    
+    def init_markers(self):
+        # markers de los waypoints
+        marker_scale = 0.2
+        marker_lifetime = 0 # 0 = para siempre
+        marker_ns = 'waypoints'
+        marker_id = 0
+        marker_color = {'r': 1.0, 'g': 0.7, 'b': 1.0, 'a': 1.0}
+        
+        # Publisher para los markers
+        self.marker_pub = rospy.Publisher('waypoint_markers', Marker)
+        
+        # Inicializa la lista de markers
+        self.markers = Marker()
+        self.markers.ns = marker_ns
+        self.markers.id = marker_id
+        self.markers.type = Marker.SPHERE_LIST
+        self.markers.action = Marker.ADD
+        self.markers.lifetime = rospy.Duration(marker_lifetime)
+        self.markers.scale.x = marker_scale
+        self.markers.scale.y = marker_scale
+        self.markers.color.r = marker_color['r']
+        self.markers.color.g = marker_color['g']
+        self.markers.color.b = marker_color['b']
+        self.markers.color.a = marker_color['a']
+        
+        self.markers.header.frame_id = 'map'
+        self.markers.header.stamp = rospy.Time.now()
+        self.markers.points = list()
+
+    def shutdown(self):
+        rospy.loginfo("Stopping the robot...")
+        # Cancela el goal activo
+        self.move_base.cancel_goal()
+        rospy.sleep(2)
+        # Para el robot
+        self.cmd_vel_pub.publish(Twist())
+        rospy.sleep(1)
+
+if __name__ == '__main__':
+    try:
+        MoveBaseSquare()
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Navigation test finished.")
