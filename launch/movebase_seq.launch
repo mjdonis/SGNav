@@ -10,7 +10,7 @@
         <!-- p_seq = [x1,y1,z1, x2,y2,z2, ... xn,yn,zn] -->
             <!-- En relacion al punto inicial -->
             <!-- <rosparam param="p_seq">[0.2,0.5,0,2,0.5,0,1.5,-0.5,0]</rosparam> -->
-            <rosparam param="p_seq">[1,0,0,1,1,0,0,1,0,0,0,0]</rosparam>
+            <rosparam param="p_seq">[3,0,0,3,3,0,0,3,0,0,0,0]</rosparam>
         <!-- Cargar secuencia de angulos en el eje vertical (yaw angles, solo rotacion en z, en grados) -->
             <rosparam param="yea_seq">[90,180,270,0]</rosparam>
 

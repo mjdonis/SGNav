@@ -32,7 +32,8 @@ class MoveBaseSeq():
         n = 3
         # construye lista de puntos goal [[point1], [point2],...[pointn]] a partir de los puntos en el param
         points = [points_seq[i:i+n] for i in range(0, len(points_seq), n)]
-        rospy.loginfo(str(points))
+        rospy.loginfo("Points: " + str(points))
+        rospy.loginfo("Angles: " + str(yaweulerangles_seq))
         for point in points:
             # crea la secuencia de poses goal (pose = point + quaternion)
             # cicla la lista de puntos (for) y la de quaternions (usando n para el indice)
