@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import rospy
 import math
 
@@ -61,7 +61,8 @@ class MoveBaseSeq():
         rospy.loginfo("Goal pose "+str(self.goal_cnt+1)+" is now being processed by the Action Server...")
 
     def feedback_cb(self, feedback):
-        rospy.loginfo("Feedback for goal pose "+str(self.goal_cnt+1)+" received")
+        #rospy.loginfo("Feedback for goal pose "+str(self.goal_cnt+1)+" received")
+        pass
 
     def done_cb(self, status, result):
         # si termino de procesar un goal, lo tomo como completado y paso al siguiente
