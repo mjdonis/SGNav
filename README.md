@@ -16,4 +16,4 @@ source devel/setup.bash
 roslaunch simple_navigation_goals movebase_seq.launch
 ```
 
-[Sending a sequence of goals to ROS NavStack with Python](https://hotblackrobotics.github.io/en/blog/2018/01/29/seq-goals-py)
+[Video demo v0.1](https://www.youtube.com/watch?v=j8ioTDPSb-U)
