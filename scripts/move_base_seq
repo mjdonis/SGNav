@@ -7,7 +7,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler
-
+from visualization_msgs.msg import Marker
 
 class MoveBaseSeq():
 
@@ -24,12 +24,14 @@ class MoveBaseSeq():
         self.pose_seq = list()
         # contador para ver cuantas poses ya mando, y si faltan
         self.goal_cnt = 0
+
         for yawangle in yaweulerangles_seq:
             # * -> unpacker, extrae valor de la lista
             # crea y agrega a la lista de quaternions los angulos en el param
             quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle*math.pi/180, axes='sxyz'))))
         # define que un punto tiene x,y,z (3)
         n = 3
+
         # construye lista de puntos goal [[point1], [point2],...[pointn]] a partir de los puntos en el param
         points = [points_seq[i:i+n] for i in range(0, len(points_seq), n)]
         rospy.loginfo("Points: " + str(points))
@@ -39,6 +41,17 @@ class MoveBaseSeq():
             # cicla la lista de puntos (for) y la de quaternions (usando n para el indice)
             self.pose_seq.append(Pose(Point(*point),quat_seq[n-3]))
             n += 1
+
+        # Inicializa los markers para rviz (lista y cosas esteticas)
+        rospy.loginfo("Setting up rviz markers...")
+        self.init_markers()
+        
+        # agrega los puntos a la lista de markers        
+        for point in self.pose_seq:           
+            p = Point()
+            p = point.position
+            self.markers.points.append(p)
+
         # Crea action client: primer arg es el namespace de los topics (namespace/goal, namespace/feedback, etc...)
         # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
         self.client = actionlib.SimpleActionClient('move_base_simple',MoveBaseAction)
@@ -62,6 +75,7 @@ class MoveBaseSeq():
 
     def feedback_cb(self, feedback):
         #rospy.loginfo("Feedback for goal pose "+str(self.goal_cnt+1)+" received")
+        # aca iria guardar feedback a un sqlite o similar
         pass
 
     def done_cb(self, status, result):
@@ -77,6 +91,7 @@ class MoveBaseSeq():
             # Si llego al goal, pasa al siguiente
             # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
             if self.goal_cnt< len(self.pose_seq):
+                self.marker_pub.publish(self.markers)
                 next_goal = MoveBaseGoal()
                 next_goal.target_pose.header.frame_id = "map"
                 next_goal.target_pose.header.stamp = rospy.Time.now()
@@ -102,7 +117,40 @@ class MoveBaseSeq():
         if status == 8:
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" received a cancel request before it started executing, successfully cancelled!")
 
+    def init_markers(self):
+        # cargar markers para rviz
+        marker_scale = 0.2
+        marker_lifetime = 0 # no se van
+        marker_ns = 'points'
+        marker_id = 0
+        marker_color = {'r': 1.0, 'g': 0.7, 'b': 1.0, 'a': 1.0}
+        
+        # define el publisher de los markers, nombre y tipo de dato que publica
+        self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
+        
+        # inicializa la lista de markers
+        self.markers = Marker()
+        self.markers.ns = marker_ns
+        self.markers.id = marker_id
+        # A sphere list is a list of spheres with all the same properties except their positions. Faster rendering
+        # http://wiki.ros.org/rviz/DisplayTypes/Marker#Sphere_List_.28SPHERE_LIST.3D7.29    
+        self.markers.type = Marker.SPHERE_LIST
+        self.markers.action = Marker.ADD
+        self.markers.lifetime = rospy.Duration(marker_lifetime)
+        self.markers.scale.x = marker_scale
+        self.markers.scale.y = marker_scale
+        self.markers.color.r = marker_color['r']
+        self.markers.color.g = marker_color['g']
+        self.markers.color.b = marker_color['b']
+        self.markers.color.a = marker_color['a']
+        
+        self.markers.header.frame_id = 'map'
+        self.markers.header.stamp = rospy.Time.now()
+        self.markers.points = list()
+
     def movebase_client(self):
+        # publica los markers al topic para rviz
+        self.marker_pub.publish(self.markers)
         # Crea goal y lo manda al servidor
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"

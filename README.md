@@ -17,3 +17,13 @@ roslaunch simple_navigation_goals movebase_seq.launch
 ```
 
 [Video demo v0.1](https://www.youtube.com/watch?v=j8ioTDPSb-U)
+
+robot:
+```
+roslaunch rtabmap_robot2_fie navigating_imu.launch
+```
+
+visualizar:
+```
+rosrun rviz rviz -d mapping.rviz
+```
