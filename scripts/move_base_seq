@@ -33,6 +33,8 @@ class MoveBaseSeq():
         n = 3
 
         # construye lista de puntos goal [[point1], [point2],...[pointn]] a partir de los puntos en el param
+        # range(inicio, fin, incremento)
+        # lista[i:j] devuelve lista con numeros desde indice i hasta j, osea [lista[i],...,lista[j]]
         points = [points_seq[i:i+n] for i in range(0, len(points_seq), n)]
         rospy.loginfo("Points: " + str(points))
         rospy.loginfo("Angles: " + str(yaweulerangles_seq))
