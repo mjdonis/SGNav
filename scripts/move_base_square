@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler
 from visualization_msgs.msg import Marker
 
-class MoveBaseSeq():
+class MoveBaseSquare():
 
     def __init__(self):
         # inicia el nodo
@@ -85,43 +85,51 @@ class MoveBaseSeq():
         pass
 
     def done_cb(self, status, result):
-        # si termino de procesar un goal, lo tomo como completado y paso al siguiente
+        # si termino de procesar un goal, paso al siguiente
         self.goal_cnt += 1
         # Reference for terminal status values: http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
         # Verifica el estado en la response
         if status == 2:
+            # PREEMPTED: received a cancel request after it started executing and has since completed its execution
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" received a cancel request after it started executing, completed execution!")
 
         if status == 3:
+            # SUCCEEDED
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached") 
             # Si llego al goal, pasa al siguiente
-            # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
-            if self.goal_cnt< len(self.pose_seq):
-                self.marker_pub.publish(self.markers)
-                next_goal = MoveBaseGoal()
-                next_goal.target_pose.header.frame_id = "map"
-                next_goal.target_pose.header.stamp = rospy.Time.now()
-                next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
-                rospy.loginfo("Sending goal pose "+str(self.goal_cnt+1)+" to Action Server")
-                rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
-                self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb) 
-            else:
-                rospy.loginfo("Final goal pose reached!")
-                rospy.signal_shutdown("Final goal pose reached!")
-                return
+            self.send_next_goal()
 
         if status == 4:
+            # ABORTED: aborted during execution by the action server due to some failure
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" was aborted by the Action Server")
-            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" aborted, shutting down!")
-            return
+            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
+            self.send_next_goal()
 
         if status == 5:
+            # REJECTED: rejected by the action server without being processed, was unattainable or invalid
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" has been rejected by the Action Server")
-            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" rejected, shutting down!")
-            return
+            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
+            self.send_next_goal()
 
         if status == 8:
+            # RECALLED: goal received a cancel request before it started executing and was successfully cancelled
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" received a cancel request before it started executing, successfully cancelled!")
+
+    def send_next_goal(self):
+        # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
+        if self.goal_cnt < len(self.pose_seq):
+            self.marker_pub.publish(self.markers)
+            next_goal = MoveBaseGoal()
+            next_goal.target_pose.header.frame_id = "map"
+            next_goal.target_pose.header.stamp = rospy.Time.now()
+            next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
+            rospy.loginfo("Sending goal pose "+str(self.goal_cnt+1)+" to Action Server")
+            rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
+            self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb) 
+        else:
+            rospy.loginfo("Final goal pose reached!")
+            rospy.signal_shutdown("Final goal pose reached!")
+            return
 
     def init_markers(self):
         # cargar markers para rviz
@@ -169,6 +177,6 @@ class MoveBaseSeq():
 
 if __name__ == '__main__':
     try:
-        MoveBaseSeq()
+        MoveBaseSquare()
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
