@@ -236,7 +236,7 @@ class MoveBaseSquare():
         # self.image_left = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
         # self.image_right = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
 
-        self.camera_list = rospy.Subscriber('/camera/color/image_raw', callback=self.get_image)
+        self.camera_list = rospy.Subscriber('/camera/color/image_raw', Image ,callback=self.get_image)
         rospy.loginfo("Subscribed to camera topic")
         self.take_image = False
 
