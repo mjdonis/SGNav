@@ -6,31 +6,35 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from visualization_msgs.msg import Marker
+
+import os
+import numpy as np
+import pyzed.sl as sl
+import cv2
+import sqlite3
 
 class MoveBaseSquare():
 
     def __init__(self):
         # inicia el nodo
         rospy.init_node('move_base_square')
-        # toma puntos fijados en el launch
+        # toma largo del cuadrado fijado en el launch
         square_length = rospy.get_param('move_base_square/sq_length')
         # angulos de las esquinas del cuadrado
         yaweulerangles_seq = [90,180,270,0]
-        # lista de quaternions (orientacion)
+        # lista de quaternions (orientacion) para las pose
         quat_seq = list()
-        # lista de poses
+        # lista de pose
         self.pose_seq = list()
         # contador para ver cuantas poses ya mando, y si faltan
         self.goal_cnt = 0
 
         for yawangle in yaweulerangles_seq:
             # * -> unpacker, extrae valor de la lista
-            # crea y agrega a la lista de quaternions los angulos en el param
+            # crea y agrega a la lista de quaternions los angulos
             quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle*math.pi/180, axes='sxyz'))))
-        # define que un punto tiene x,y,z (3)
-        n = 3
 
         # genera lista de puntos cada 1 metro recorriendo el cuadrado
         # cambiando la orientacion cuando llega a la esquina
@@ -52,11 +56,17 @@ class MoveBaseSquare():
         self.init_markers()
         
         # agrega los puntos a la lista de markers        
-        for point in self.pose_seq:           
+        for pose in self.pose_seq:           
             p = Point()
-            p = point.position
+            p = pose.position
             rospy.loginfo(str(p))
             self.markers.points.append(p)
+
+        # inicializa la camara
+        self.init_camera()
+
+        # incializa db
+        self.init_database()
 
         # Crea action client: primer arg es el namespace de los topics (namespace/goal, namespace/feedback, etc...)
         # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
@@ -81,7 +91,6 @@ class MoveBaseSquare():
 
     def feedback_cb(self, feedback):
         #rospy.loginfo("Feedback for goal pose "+str(self.goal_cnt+1)+" received")
-        # aca iria guardar feedback a un sqlite o similar
         pass
 
     def done_cb(self, status, result):
@@ -102,13 +111,15 @@ class MoveBaseSquare():
         if status == 4:
             # ABORTED: aborted during execution by the action server due to some failure
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" was aborted by the Action Server")
-            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
+            self.get_image(self.pose_seq[self.goal_cnt-1]) # guarda foto del obstaculo, pasa data de la pose
+            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
             self.send_next_goal()
 
         if status == 5:
             # REJECTED: rejected by the action server without being processed, was unattainable or invalid
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" has been rejected by the Action Server")
-            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
+            self.get_image(self.pose_seq[self.goal_cnt-1]) # guarda foto del obstaculo, pasa data de la pose
+            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
             self.send_next_goal()
 
         if status == 8:
@@ -128,6 +139,7 @@ class MoveBaseSquare():
             self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb) 
         else:
             rospy.loginfo("Final goal pose reached!")
+            self.zed.close()
             rospy.signal_shutdown("Final goal pose reached!")
             return
 
@@ -161,6 +173,136 @@ class MoveBaseSquare():
         self.markers.header.frame_id = 'map'
         self.markers.header.stamp = rospy.Time.now()
         self.markers.points = list()
+
+    def init_database(self):
+        # crea archivo y conecta
+        try:
+            self.database_path = os.path.expanduser("~") + "/robot.db"
+            rospy.loginfo("Creating database... (" + self.database_path + ")")
+            conn = sqlite3.connect(self.database_path)
+            rospy.loginfo("Database created")
+
+            # crea tabla
+            sql = """CREATE TABLE IF NOT EXISTS obstacle (
+                        id integer PRIMARY KEY NOT NULL,
+                        filename text NOT NULL,
+                        timestamp text NOT NULL,
+                        x integer NOT NULL,
+                        y integer NOT NULL,
+                        z integer NOT NULL,
+                        angle integer NOT NULL
+                    );"""
+
+            try:
+                conn.cursor().execute(sql)
+                rospy.loginfo("Table created")
+
+                conn.commit()
+                conn.close()
+            except sqlite3.Error as e:
+                rospy.loginfo(e)
+
+        except sqlite3.Error as e:
+            rospy.loginfo(e)
+
+    def init_camera(self):
+        # crear objeto camara
+        self.zed = sl.Camera()
+
+        # parametros de configuracion, carga los default
+        init_params = sl.InitParameters()
+        init_params.camera_resolution = sl.RESOLUTION.HD1080
+        init_params.camera_fps = 30
+
+        # abre la camara
+        rospy.loginfo("Opening camera...")
+        err = self.zed.open(init_params)
+        if err != sl.ERROR_CODE.SUCCESS:
+            rospy.loginfo("Failed to open camera")
+
+        # fijar parametros de runtime despues de abrir la camara
+        self.runtime = sl.RuntimeParameters()
+        self.runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+
+        # preparar imagen y matrices
+        self.image_size = self.zed.get_camera_information().camera_resolution
+        self.image_left = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
+        self.image_right = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
+
+        rospy.loginfo("Creating images directory...")
+        # crear dir donde guarda las img
+        self.image_path = os.path.join(os.path.expanduser("~"), 'robot_images')
+
+        # si ya existe, no lo crea de vuelta
+        try:
+            os.mkdir(self.image_path)
+            rospy.loginfo("Directory created (" + self.image_path + ")")
+        except FileExistsError:
+            rospy.loginfo("Images directory already exists (" + self.image_path + ")")
+
+    def get_image(self, pose):
+        # guardar imagen (sbs, juntar las de las dos camaras)
+        if (self.zed.grab(self.runtime) == sl.ERROR_CODE.SUCCESS) :
+            # si devuelve success, se capturo la imagen
+            # imagen camara izq
+            self.zed.retrieve_image(self.image_left, sl.VIEW.LEFT, sl.MEM.CPU, self.image_size)
+            # convierte en matriz numpy para que pueda leer opencv
+            image_cv_left = self.image_left.get_data()
+
+            # imagen camara derecha
+            self.zed.retrieve_image(self.image_right, sl.VIEW.RIGHT, sl.MEM.CPU, self.image_size)
+            image_cv_right = self.image_right.get_data()
+            
+            # timestamp de la imagen
+            timestamp = self.zed.get_current_timestamp(sl.TIME_REFERENCE.IMAGE) # Get the timestamp of the image
+            rospy.loginfo("Obstacle image taken")
+
+            # junta las dos imagenes
+            sbs_image = np.concatenate((image_cv_left, image_cv_right), axis=1)
+
+            # guardar imagen como png
+            filename = self.image_path + "/image_" + timestamp + ".png"
+            cv2.imwrite(filename, sbs_image)
+            rospy.loginfo("Saved image: " + filename)
+
+            rospy.loginfo("Getting pose data...")
+            # tomar datos para db
+            p = Point()
+            p = pose.position
+            x = p.x
+            y = p.y
+            z = p.z
+
+            q = Quaternion()
+            q = pose.orientation
+            euler = euler_from_quaternion(q)
+            angle = euler[2]/(math.pi*180)
+
+            # guardar la imagen en la db con los datos
+            self.save_image(filename, timestamp, x, y, z, angle)
+            rospy.loginfo("Saved to database")
+            
+
+    def save_image(self, filename, timestamp, x, y, z, angle):
+        # crea conexion
+        try:
+            
+            conn = sqlite3.connect(self.database_path)
+            print("db created")
+            
+            sql = """INSERT INTO obstacle(filename, timestamp, x, y, z, angle)
+                        VALUES(""" + str(filename) + "," + str(timestamp) + "," + str(x) + "," + str(y) + "," + str(z) + "," + str(angle) + """
+                    );"""
+            try:
+                conn.cursor().execute(sql)
+                conn.commit()
+            except sqlite3.Error as e:
+                print(e)
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            print.info(e)
 
     def movebase_client(self):
         # publica los markers al topic para rviz
