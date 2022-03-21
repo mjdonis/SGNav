@@ -11,9 +11,12 @@ from visualization_msgs.msg import Marker
 
 import os
 import numpy as np
-import pyzed.sl as sl
+# import pyzed.sl as sl
+from sensor_msgs import Image
 import cv2
+from cv_bridge import CvBridge
 import sqlite3
+import datetime
 
 class MoveBaseSquare():
 
@@ -111,14 +114,18 @@ class MoveBaseSquare():
         if status == 4:
             # ABORTED: aborted during execution by the action server due to some failure
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" was aborted by the Action Server")
-            self.get_image(self.pose_seq[self.goal_cnt-1]) # guarda foto del obstaculo, pasa data de la pose
+            self.current_pose = self.pose_seq[self.goal_cnt-1]
+            self.take_image = True
+            # self.get_image() # guarda foto del obstaculo, pasa data de la pose
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
             self.send_next_goal()
 
         if status == 5:
             # REJECTED: rejected by the action server without being processed, was unattainable or invalid
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" has been rejected by the Action Server")
-            self.get_image(self.pose_seq[self.goal_cnt-1]) # guarda foto del obstaculo, pasa data de la pose
+            self.current_pose = self.pose_seq[self.goal_cnt-1]
+            self.take_image = True
+            # self.get_image(self.pose_seq[self.goal_cnt-1]) # guarda foto del obstaculo, pasa data de la pose
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
             self.send_next_goal()
 
@@ -206,28 +213,34 @@ class MoveBaseSquare():
             rospy.loginfo(e)
 
     def init_camera(self):
-        # crear objeto camara
-        self.zed = sl.Camera()
+        # # crear objeto camara
+        # self.zed = sl.Camera()
 
-        # parametros de configuracion, carga los default
-        init_params = sl.InitParameters()
-        init_params.camera_resolution = sl.RESOLUTION.HD1080
-        init_params.camera_fps = 30
+        # # parametros de configuracion, carga los default
+        # init_params = sl.InitParameters()
+        # init_params.camera_resolution = sl.RESOLUTION.HD1080
+        # init_params.camera_fps = 30
 
-        # abre la camara
-        rospy.loginfo("Opening camera...")
-        err = self.zed.open(init_params)
-        if err != sl.ERROR_CODE.SUCCESS:
-            rospy.loginfo("Failed to open camera")
+        # # abre la camara
+        # rospy.loginfo("Opening camera...")
+        # err = self.zed.open(init_params)
+        # if err != sl.ERROR_CODE.SUCCESS:
+        #     rospy.loginfo("Failed to open camera")
 
-        # fijar parametros de runtime despues de abrir la camara
-        self.runtime = sl.RuntimeParameters()
-        self.runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+        # # fijar parametros de runtime despues de abrir la camara
+        # self.runtime = sl.RuntimeParameters()
+        # self.runtime.sensing_mode = sl.SENSING_MODE.STANDARD
 
-        # preparar imagen y matrices
-        self.image_size = self.zed.get_camera_information().camera_resolution
-        self.image_left = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
-        self.image_right = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
+        # # preparar imagen y matrices
+        # self.image_size = self.zed.get_camera_information().camera_resolution
+        # self.image_left = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
+        # self.image_right = sl.Mat(self.image_size.width, self.image_size.height, sl.MAT_TYPE.U8_C4)
+
+        self.camera_list = rospy.Subscriber('/camera/color/image_raw', callback=self.get_image)
+        rospy.loginfo("Subscribed to camera topic")
+        self.take_image = False
+
+        self.bridge = CvBridge()
 
         rospy.loginfo("Creating images directory...")
         # crear dir donde guarda las img
@@ -240,47 +253,55 @@ class MoveBaseSquare():
         except FileExistsError:
             rospy.loginfo("Images directory already exists (" + self.image_path + ")")
 
-    def get_image(self, pose):
-        # guardar imagen (sbs, juntar las de las dos camaras)
-        if (self.zed.grab(self.runtime) == sl.ERROR_CODE.SUCCESS) :
-            # si devuelve success, se capturo la imagen
-            # imagen camara izq
-            self.zed.retrieve_image(self.image_left, sl.VIEW.LEFT, sl.MEM.CPU, self.image_size)
-            # convierte en matriz numpy para que pueda leer opencv
-            image_cv_left = self.image_left.get_data()
+    def get_image(self, message):
+        # # guardar imagen (sbs, juntar las de las dos camaras)
+        # if (self.zed.grab(self.runtime) == sl.ERROR_CODE.SUCCESS) :
+        #     # si devuelve success, se capturo la imagen
+        #     # imagen camara izq
+        #     self.zed.retrieve_image(self.image_left, sl.VIEW.LEFT, sl.MEM.CPU, self.image_size)
+        #     # convierte en matriz numpy para que pueda leer opencv
+        #     image_cv_left = self.image_left.get_data()
 
-            # imagen camara derecha
-            self.zed.retrieve_image(self.image_right, sl.VIEW.RIGHT, sl.MEM.CPU, self.image_size)
-            image_cv_right = self.image_right.get_data()
+        #     # imagen camara derecha
+        #     self.zed.retrieve_image(self.image_right, sl.VIEW.RIGHT, sl.MEM.CPU, self.image_size)
+        #     image_cv_right = self.image_right.get_data()
             
-            # timestamp de la imagen
-            timestamp = self.zed.get_current_timestamp(sl.TIME_REFERENCE.IMAGE) # Get the timestamp of the image
-            rospy.loginfo("Obstacle image taken")
+        #     # timestamp de la imagen
+        #     timestamp = self.zed.get_current_timestamp(sl.TIME_REFERENCE.IMAGE) # Get the timestamp of the image
+        #     rospy.loginfo("Obstacle image taken")
 
-            # junta las dos imagenes
-            sbs_image = np.concatenate((image_cv_left, image_cv_right), axis=1)
+        #     # junta las dos imagenes
+        #     sbs_image = np.concatenate((image_cv_left, image_cv_right), axis=1)
+    
+        if self.take_image is True:
+            rospy.loginfo("Getting obstacle image...")
+            image = message.data
+            image_cv = self.bridge.imgmsg_to_cv2(image)
 
             # guardar imagen como png
+            timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
             filename = self.image_path + "/image_" + timestamp + ".png"
-            cv2.imwrite(filename, sbs_image)
+            cv2.imwrite(filename, image_cv)
             rospy.loginfo("Saved image: " + filename)
 
             rospy.loginfo("Getting pose data...")
             # tomar datos para db
             p = Point()
-            p = pose.position
+            p = self.current_pose.position
             x = p.x
             y = p.y
             z = p.z
 
             q = Quaternion()
-            q = pose.orientation
+            q = self.current_pose.orientation
             euler = euler_from_quaternion(q)
             angle = euler[2]/(math.pi*180)
 
             # guardar la imagen en la db con los datos
             self.save_image(filename, timestamp, x, y, z, angle)
             rospy.loginfo("Saved to database")
+
+            self.take_image = False
             
 
     def save_image(self, filename, timestamp, x, y, z, angle):
