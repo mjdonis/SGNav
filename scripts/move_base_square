@@ -73,7 +73,7 @@ class MoveBaseSquare():
 
         # Crea action client: primer arg es el namespace de los topics (namespace/goal, namespace/feedback, etc...)
         # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
-        self.client = actionlib.SimpleActionClient('move_base_simple',MoveBaseAction)
+        self.client = actionlib.SimpleActionClient('planner/move_base_simple',MoveBaseAction)
         rospy.loginfo("Waiting for move_base action server...")
         wait = self.client.wait_for_server()
         if not wait:
