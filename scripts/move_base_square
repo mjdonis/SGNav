@@ -1,14 +1,163 @@
 #!/usr/bin/env python3
+
 import rospy
 import math
+import os
+import datetime
+import cv2
+import sqlite3
 
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Pose, Point, Quaternion
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from visualization_msgs.msg import Marker
 
-from .models.camera import Camera
+
+#################################################
+# BASE DE DATOS
+#################################################
+
+class Database:
+    """Clase que maneja la base de datos (sqlite)"""
+    def __init__(self):
+        # crea archivo y conecta
+        try:
+            self.database_path = os.path.expanduser("~") + "/robot.db"
+            rospy.loginfo("Creating database... (" + self.database_path + ")")
+            conn = sqlite3.connect(self.database_path)
+            rospy.loginfo("Database created")
+
+            # crea tabla
+            sql = """CREATE TABLE IF NOT EXISTS obstacle (
+                        id integer PRIMARY KEY NOT NULL,
+                        filename text NOT NULL,
+                        timestamp text NOT NULL,
+                        x integer NOT NULL,
+                        y integer NOT NULL,
+                        z integer NOT NULL,
+                        angle integer NOT NULL
+                    );"""
+
+            try:
+                conn.cursor().execute(sql)
+                rospy.loginfo("Table created")
+
+                conn.commit()
+                conn.close()
+            except sqlite3.Error as e:
+                rospy.loginfo(e)
+
+        except sqlite3.Error as e:
+            rospy.loginfo(e)
+
+    def save_image(self, current_pose, filename, timestamp):
+        """Guarda en la db el nombre de la imagen tomada y datos de la pose correspondiente"""
+        # crea conexion
+        try:
+
+            conn = sqlite3.connect(self.database_path)
+            print("db created")
+
+            rospy.loginfo("Getting pose data...")
+            # tomar datos para db
+            p = Point()
+            p = current_pose.position
+            x = p.x
+            y = p.y
+            z = p.z
+
+            q = Quaternion()
+            q = current_pose.orientation
+            euler = euler_from_quaternion(q)
+            angle = euler[2] / (math.pi * 180)
+
+            sql = """INSERT INTO obstacle(filename, timestamp, x, y, z, angle)
+                        VALUES(""" + str(filename) + "," + str(timestamp) + "," + str(x) + "," + str(y) + "," + str(
+                z) + "," + str(angle) + """
+                    );"""
+            try:
+                conn.cursor().execute(sql)
+                conn.commit()
+
+                rospy.loginfo("Saved to database")
+            except sqlite3.Error as e:
+                print(e)
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            print.info(e)
+
+#################################################
+# CAMARA
+#################################################
+
+class Camera:
+    """Manejo de la camara (generico)"""
+    def __init__(self):
+        # crea subscriber al topic de la camara para tomar imagen
+        self.sub = rospy.Subscriber('/camera/color/image_raw', Image, callback=self.get_image)
+        rospy.loginfo("Subscribed to camera topic")
+
+        # flag para saber cuando hay que sacar una foto (async)
+        self.take_image = False
+        # bridge para convertir tipo sensor_msgs.Image (topic) a matriz opencv
+        self.bridge = CvBridge()
+
+        rospy.loginfo("Creating images directory...")
+        # crear dir donde guarda las img
+        self.image_path = os.path.join(os.path.expanduser("~"), 'robot_images')
+
+        # para guardar la pose actual
+        self.current_pose = Pose()
+
+        # conexion con la db para guardar las imagenes
+        self.db = Database()
+
+        # si ya existe, no lo crea de vuelta
+        try:
+            os.mkdir(self.image_path)
+            rospy.loginfo("Directory created (" + self.image_path + ")")
+        except FileExistsError:
+            rospy.loginfo("Images directory already exists (" + self.image_path + ")")
+
+    def set_current_pose(self, pose):
+        """Guarda en current_pose la pose enviada como parametro"""
+        self.current_pose = pose
+
+    def get_image(self, message):
+        """Funcion callback del subscriber, se llama cada vez que llega un mensaje al topic
+           Si take_flag = True, se debe "sacar una foto", es decir guardar el siguiente mensaje en el topic
+           devuelve una lista con el nombre del archivo y el timestamp para la db"""
+        # si el flag es False, no hay que hacer nada
+        # si es True, "saca la foto"
+        if self.take_image:
+            rospy.loginfo("Getting obstacle image...")
+
+            # toma mensaje del topic (imagen de la camara)
+            image = message.data
+            # convierte el tipo de dato sensor_msgs.Image a uno que pueda manejar opencv
+            image_cv = self.bridge.imgmsg_to_cv2(image)
+
+            # guardar imagen como png con opencv y timestamp
+            timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
+            filename = self.image_path + "/image_" + timestamp + ".png"
+            cv2.imwrite(filename, image_cv)
+            rospy.loginfo("Saved image: " + filename)
+
+            # guarda imagen y datos en la db
+            self.db.save_image(self.current_pose, filename, timestamp)
+
+            # vuelve a dejar el flag en False hasta que haya que guardar otra foto
+            self.take_image = False
+
+
+#################################################
+# CLASE PRINCIPAL - COMUNICACION CON MOVE_BASE
+#################################################
 
 class MoveBaseSquare():
     """Clase base que maneja el cliente que conecta con el nodo move_base"""
