@@ -1,25 +1,64 @@
 local_costmap:
+  # (default: "/map") The global frame for the costmap to operate in.
   global_frame: map
+  # (default: "base_link") The name of the frame for the base link of the robot.
   robot_base_frame: base_link
+  # (default: 5.0) The frequency in Hz for the map to be updated.
   update_frequency: 5.0
+  # (default: 0.0) The frequency in Hz for the map to be publish display information.
   publish_frequency: 2.0
+
   static_map: false
+  # (default: false) Whether or not to use a rolling window version of the costmap.
+  # If the static_map parameter is set to true, this parameter must be set to false.
   rolling_window: true
+
+  # (default: 10) The width of the map in meters.
   width: 4.0
+  # (default: 10) The height of the map in meters.
   height: 4.0
+  # (default: 0.05) The resolution of the map in meters/cell.
   resolution: 0.025
+  # (default: 0.0) The x origin of the map in the global frame in meters.
   origin_x: -2.0
+  # (default: 0.0) The y origin of the map in the global frame in meters.
   origin_y: -2.0
 
+  # (default: "") A list of observation source names separated by spaces.
+  # This defines each of the <source_name> namespaces defined below.
   observation_sources: point_cloud_sensor
 
   # assuming receiving a cloud from rtabmap_ros/obstacles_detection node
   point_cloud_sensor: {
+    # (default: "") The frame of the origin of the sensor. Leave empty
+    # to attempt to read the frame from sensor data. The frame can be read
+    # from both sensor_msgs/LaserScan, sensor_msgs/PointCloud, and
+    # sensor_msgs/PointCloud2 messages.
     sensor_frame: camera_link,
-    data_type: PointCloud2, 
-    topic: /rtabmap/cloud_obstacles, 
-    expected_update_rate: 500, 
-    marking: true, 
+    # (default: "PointCloud") The data type associated with the topic,
+    # right now only "PointCloud", "PointCloud2", and "LaserScan" are supported.
+    data_type: PointCloud2,
+    # (default: source_name) The topic on which sensor data comes in for
+    # this source. Defaults to the name of the source.
+    topic: /rtabmap/cloud_obstacles,
+    # (default: 0.0) How often to expect a reading from a sensor in seconds.
+    # A value of 0.0 will allow infinite time between readings. This parameter
+    # is used as a failsafe to keep the navigation stack from commanding the robot
+    # when a sensor has failed. It should be set to a value that is slightly more
+    # permissive than the actual rate of the sensor.
+    expected_update_rate: 500,
+    # (default: true) Whether or not this observation should be used to mark obstacles.
+    marking: true,
+    # (default: false) Whether or not this observation should be used to
+    # clear out freespace.
     clearing: true,
+    # (default: 0.0) The minimum height in meters of a sensor reading considered valid.
+    # This is usually set to be at ground height, but can be set higher or lower based
+    # on the noise model of your sensor.
     min_obstacle_height: -99999.0,
+    # (default: 2.0) The maximum height in meters of a sensor reading considered valid.
+    # This is usually set to be slightly higher than the height of the robot. Setting
+    # this parameter to a value greater than the global max_obstacle_height parameter
+    # has no effect. Setting this parameter to a value less than the global max_obstacle_height
+    # will filter out points from this sensor above that height.
     max_obstacle_height: 99999.0}
