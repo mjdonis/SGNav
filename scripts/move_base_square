@@ -98,8 +98,10 @@ class Database:
 class Camera:
     """Manejo de la camara (generico)"""
     def __init__(self):
+        camera_topic = rospy.get_param('move_base_square/camera_topic')
+
         # crea subscriber al topic de la camara para tomar imagen
-        self.sub = rospy.Subscriber('/camera/color/image_raw', Image, callback=self.get_image)
+        self.sub = rospy.Subscriber(camera_topic, Image, callback=self.get_image)
         rospy.loginfo("Subscribed to camera topic")
 
         # flag para saber cuando hay que sacar una foto (async)
@@ -187,9 +189,10 @@ class MoveBaseSquare():
         # inicializa la camara (y db)
         self.camera = Camera()
 
+        movebase_topic = rospy.get_param('move_base_square/movebase_topic')
         # Crea action client: primer arg es el namespace de los topics (namespace/goal, namespace/feedback, etc...)
         # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
-        self.client = actionlib.SimpleActionClient('planner/move_base_simple',MoveBaseAction)
+        self.client = actionlib.SimpleActionClient(movebase_topic,MoveBaseAction)
         rospy.loginfo("Waiting for move_base action server...")
         wait = self.client.wait_for_server()
 
@@ -256,7 +259,8 @@ class MoveBaseSquare():
         marker_color = {'r': 1.0, 'g': 0.7, 'b': 1.0, 'a': 1.0}
 
         # define el publisher de los markers, nombre y tipo de dato que publica
-        self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
+        rviz_topic = rospy.get_param('move_base_square/rviz_topic')
+        self.marker_pub = rospy.Publisher(rviz_topic, Marker, queue_size=100)
 
         # inicializa la lista de markers
         self.markers = Marker()

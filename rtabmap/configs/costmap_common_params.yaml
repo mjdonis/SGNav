@@ -1,0 +1,56 @@
+# (default: 2.5) The maximum range in meters at which to insert
+# obstacles into the costmap using sensor data
+# Robot will only updates its map with information about obstacle within this value
+obstacle_range: 3.0
+# (default: 3.0) The maximum range in meters at which to raytrace
+# out obstacles from the map using sensor data
+# Robot attempts to clear out space in front of its values' meter away given sensor readings
+raytrace_range: 4.0
+# footprint describes the outfit of the robot >> assume the center is located at [0, 0]
+footprint: [[ 0.3,  0.2], [-0.3,  0.2], [-0.3, -0.2], [ 0.3, -0.2]]
+
+footprint_padding: 0.03
+#robot_radius: ir_of_robot
+
+# (default: 0.55) The radius in meters to which the map inflates obstacle cost values.
+inflation_radius: 0.10
+# (default: 0.2) Specifies the delay in transform (tf) data that is tolerable in seconds.
+# This parameter serves as a safeguard to losing a link in the tf tree while still
+# allowing an amount of latency the user is comfortable with to exist in the system.
+transform_tolerance: 1
+
+# (default: 15.0) How long the controller will wait in seconds without receiving a
+# valid control before space-clearing operations are performed.
+controller_patience: 2.0
+
+NavfnROS:
+    # (default: true) Specifies whether or not to allow navfn to create plans that
+    # traverse unknown space. NOTE: if you are using a layered costmap_2d costmap
+    # with a voxel or obstacle layer, you must also set the track_unknown_space param
+    # for that layer to be true, or it will convert all your unknown space to ç
+    # free space (which navfn will then happily go right through).
+    allow_unknown: true
+
+# default: [
+#     {name: conservative_reset, type: clear_costmap_recovery/ClearCostmapRecovery},
+#     {name: rotate_recovery, type: rotate_recovery/RotateRecovery},
+#     {name: aggressive_reset, type: clear_costmap_recovery/ClearCostmapRecovery}
+# ]
+# A list of recovery behavior plugins to use with move_base, see pluginlib.
+# These behaviors will be run when move_base fails to find a valid plan in the order
+# that they are specified. After each behavior completes, move_base will attempt to
+# make a plan. If planning is successful, move_base will continue normal operation.
+# Otherwise, the next recovery behavior in the list will be executed. These plugins
+# must adhere to the nav_core::RecoveryBehavior interface specified in the nav_core package.
+recovery_behaviors: [
+    {name: conservative_clear, type: clear_costmap_recovery/ClearCostmapRecovery},
+    {name: aggressive_clear, type: clear_costmap_recovery/ClearCostmapRecovery}
+]
+
+conservative_clear:
+    # (default: 3.0) The length of the side of a square centered on the robot pose,
+    # outside which obstacles will be removed from the costmaps when they are
+    # reverted to the static map.
+    reset_distance: 0.30
+aggressive_clear:
+    reset_distance: 0.20
