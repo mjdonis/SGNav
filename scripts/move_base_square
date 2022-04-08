@@ -171,6 +171,8 @@ class MoveBaseSquare():
         self.pose_seq = list()
         # contador para ver cuantas poses ya mando, y si faltan
         self.goal_cnt = 0
+        # contador de tiempo para ver que no este demasiado tiempo en un goal
+        self.timeout = True
 
         # crea el cuadrado de pose que tiene que recorrer el robot
         self.init_poses()
@@ -206,6 +208,7 @@ class MoveBaseSquare():
         self.movebase_client()
         
     def movebase_client(self):
+        """Envía el primer goal a move_base (inicia el nodo)"""
         # publica los markers al topic para rviz
         self.marker_pub.publish(self.markers)
 
@@ -218,6 +221,10 @@ class MoveBaseSquare():
         rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
         self.client.send_goal(goal, self.done_cb, self.active_cb)
         rospy.spin()
+
+        # despues de 2,5 min verifica si llego al goal, si no llego ejecuta funcion timeout
+        self.timeout = self.client.wait_for_result(rospy.Duration(150))
+        self.timed_out()
 
     def init_poses(self):
         """Inicializa las poses que tiene que recorrer el robbot en una lista"""
@@ -281,6 +288,22 @@ class MoveBaseSquare():
         self.markers.header.frame_id = 'map'
         self.markers.header.stamp = rospy.Time.now()
         self.markers.points = list()
+
+    def timed_out(self):
+        """Verifica si paso 2,5min desde que envio el ultimo goal
+           Si timeout es False, sigue con el goal despues del tiempo y se cancela
+           Si timeout es True, termino el goal"""
+        if not self.timeout:
+            self.client.cancel_goal() # cancela el goal actual
+            self.goal_cnt += 1 # pasa al siguiente goal
+
+            # pasa la pose a la camara e indica que hay que tomar la foto y guardarla
+            self.camera.set_current_pose(self.pose_seq[self.goal_cnt-1])
+            self.camera.take_image = True
+
+            # pasa al siguiente goal
+            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" timed out, trying next goal")
+            self.send_next_goal()
 
     #############################
     # CALLBACKS

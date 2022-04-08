@@ -14,6 +14,10 @@
         <!-- Cargar secuencia de angulos en el eje vertical (yaw angles, solo rotacion en z, en grados) -->
             <rosparam param="yea_seq">[90,180,270,0]</rosparam>
 
+            <rosparam param="camera_topic">/camera/color/image_raw</rosparam>
+            <rosparam param="movebase_topic">/planner/move_base</rosparam>
+            <rosparam param="rviz_topic">/visualization_marker</rosparam>
+
         </node>
 
 </launch>
