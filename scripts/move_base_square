@@ -223,7 +223,8 @@ class MoveBaseSquare():
         rospy.spin()
 
         # despues de 2,5 min verifica si llego al goal, si no llego ejecuta funcion timeout
-        self.timeout = self.client.wait_for_result(rospy.Duration(150))
+        goal_tolerance = rospy.get_param('move_base_square/goal_tolerance')
+        self.timeout = self.client.wait_for_result(rospy.Duration(goal_tolerance))
         self.timed_out()
 
     def init_poses(self):
