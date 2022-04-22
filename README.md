@@ -1,11 +1,11 @@
-# simple_navigation_goals
+# SGNav
 
 ## Instalar dependencias y clonar el proyecto
 ```
 sudo apt install ros-melodic-navigation
 mkdir -p ~/bot_ws/src
 cd ~/bot_ws/src
-git clone git@github.com:mjd-x/simple_navigation_goals.git
+git clone git@github.com:mjd-x/SGNav.git
 cd ..
 catkin_make install
 source devel/setup.bash
@@ -16,7 +16,7 @@ source devel/setup.bash
 Recorrer cualquier secuencia de puntos especificada en movebase_seq.launch:
 
 ```
-roslaunch simple_navigation_goals movebase_seq.launch
+roslaunch sgnav movebase_seq.launch
 ```
 
 o
@@ -24,7 +24,7 @@ o
 Recorrer un cuadrado del largo especificado en movebase_square.launch:
 
 ```
-roslaunch simple_navigation_goals movebase_square.launch
+roslaunch sgnav movebase_square.launch
 ```
 
 [Video demo v0.1](https://www.youtube.com/watch?v=j8ioTDPSb-U)

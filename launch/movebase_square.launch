@@ -3,12 +3,11 @@
 <!-- Launch del nodo MoveBaseSeq y carga de secuencia de puntos en parametros ROS -->
 
     <!-- Correr el nodo move_base_seqs -->
-        <node pkg="simple_navigation_goals" type="move_base_square" name="move_base_square" output="screen">
+        <node pkg="sgnav" type="move_base_square" name="move_base_square" output="screen">
         
         <!-- Cargar largo del lado en parametro ROS (en metros) -->
         <!-- En relacion al punto inicial donde esta el robot, CCW, un cuadrado -->
             <rosparam param="sq_length">4</rosparam>
-            <rosparam param="goal_tolerance">180</rosparam>
             <rosparam param="camera_topic">/camera/color/image_raw</rosparam>
             <rosparam param="movebase_topic">/planner/move_base</rosparam>
             <rosparam param="rviz_topic">/visualization_marker</rosparam>
