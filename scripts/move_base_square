@@ -307,30 +307,20 @@ class MoveBaseSquare():
 
         if status == 3:
             # SUCCEEDED
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached") 
+            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached successfully")
             # Si llego al goal, pasa al siguiente
             self.send_next_goal()
 
         if status == 4:
             # ABORTED: aborted during execution by the action server due to some failure
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" was aborted by the Action Server")
-
-            # pasa la pose e indica que hay que tomar la foto y guardarla
-            self.camera.set_current_pose(self.pose_seq[self.goal_cnt-1])
-            self.camera.take_image = True
-
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
+            rospy.loginfo("Trying next goal")
             self.send_next_goal()
 
         if status == 5:
             # REJECTED: rejected by the action server without being processed, was unattainable or invalid
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" has been rejected by the Action Server")
-
-            # pasa la pose a la camara e indica que hay que tomar la foto y guardarla
-            self.camera.set_current_pose(self.pose_seq[self.goal_cnt-1])
-            self.camera.take_image = True
-
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
+            rospy.loginfo("Trying next goal")
             self.send_next_goal()
 
         if status == 8:
@@ -339,6 +329,10 @@ class MoveBaseSquare():
 
     def send_next_goal(self):
         """Envia el siguiente goal al cliente o termina la ejecucion si no quedan mas goals"""
+        # pasa la pose e indica que hay que tomar la foto y guardarla
+        self.camera.set_current_pose(self.pose_seq[self.goal_cnt - 1])
+        self.camera.take_image = True
+
         # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
         if self.goal_cnt < len(self.pose_seq):
             self.marker_pub.publish(self.markers)
@@ -346,7 +340,7 @@ class MoveBaseSquare():
             next_goal.target_pose.header.frame_id = "map"
             next_goal.target_pose.header.stamp = rospy.Time.now()
             next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
-            rospy.loginfo("Sending goal pose "+str(self.goal_cnt+1)+" to Action Server")
+            rospy.loginfo("Sending goal pose "+str(self.goal_cnt + 1)+" to Action Server")
             rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
             self.client.send_goal(next_goal, self.done_cb, self.active_cb)
         else:
