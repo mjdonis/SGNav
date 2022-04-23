@@ -140,21 +140,25 @@ class Camera:
             rospy.loginfo("Getting obstacle image...")
 
             # toma mensaje del topic (imagen de la camara)
-            image = message.data
+            image = Image(message.data)
+
+
+
             # convierte el tipo de dato sensor_msgs.Image a uno que pueda manejar opencv
-            image_cv = self.bridge.imgmsg_to_cv2(image)
+            try:
+                image_cv = self.bridge.imgmsg_to_cv2(image)
 
-            # guardar imagen como png con opencv y timestamp
-            timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
-            filename = self.image_path + "/image_" + timestamp + ".png"
-            cv2.imwrite(filename, image_cv)
-            rospy.loginfo("Saved image: " + filename)
+                # guardar imagen como png con opencv y timestamp
+                timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
+                filename = self.image_path + "/image_" + timestamp + ".png"
+                cv2.imwrite(filename, image_cv)
+                rospy.loginfo("Saved image: " + filename)
 
-            # guarda imagen y datos en la db
-            self.db.save_image(self.current_pose, filename, timestamp)
+                # guarda imagen y datos en la db
+                self.db.save_image(self.current_pose, filename, timestamp)
 
-            # vuelve a dejar el flag en False hasta que haya que guardar otra foto
-            self.take_image = False
+            except AttributeError:  # catch
+                rospy.loginfo("Couldn't take obstacle image")
 
 
 #################################################
