@@ -4,9 +4,9 @@ local_costmap:
   # (default: "base_link") The name of the frame for the base link of the robot.
   robot_base_frame: base_link
   # (default: 5.0) The frequency in Hz for the map to be updated.
-  update_frequency: 5.0
+  update_frequency: 3.0
   # (default: 0.0) The frequency in Hz for the map to be publish display information.
-  publish_frequency: 2.0
+  publish_frequency: 0.25
 
   static_map: false
   # (default: false) Whether or not to use a rolling window version of the costmap.
@@ -20,9 +20,9 @@ local_costmap:
   # (default: 0.05) The resolution of the map in meters/cell.
   resolution: 0.025
   # (default: 0.0) The x origin of the map in the global frame in meters.
-  origin_x: -2.0
+  origin_x: 0.0
   # (default: 0.0) The y origin of the map in the global frame in meters.
-  origin_y: -2.0
+  origin_y: 0.0
 
   # (default: "") A list of observation source names separated by spaces.
   # This defines each of the <source_name> namespaces defined below.
@@ -55,10 +55,10 @@ local_costmap:
     # (default: 0.0) The minimum height in meters of a sensor reading considered valid.
     # This is usually set to be at ground height, but can be set higher or lower based
     # on the noise model of your sensor.
-    min_obstacle_height: -99999.0,
+    min_obstacle_height: 0.0,
     # (default: 2.0) The maximum height in meters of a sensor reading considered valid.
     # This is usually set to be slightly higher than the height of the robot. Setting
     # this parameter to a value greater than the global max_obstacle_height parameter
     # has no effect. Setting this parameter to a value less than the global max_obstacle_height
     # will filter out points from this sensor above that height.
-    max_obstacle_height: 99999.0}
+    max_obstacle_height: 1.0}

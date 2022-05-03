@@ -69,27 +69,31 @@ class Database:
             y = p.y
             z = p.z
 
-            q = Quaternion()
-            q = current_pose.orientation
-            euler = euler_from_quaternion(q)
-            angle = euler[2] / (math.pi * 180)
+            #q = Quaternion()
+            #q = current_pose.orientation
+            #euler = euler_from_quaternion(q)
+            #angle = euler[2] / (math.pi * 180)
+            angle = 180
 
-            sql = """INSERT INTO obstacle(filename, timestamp, x, y, z, angle)
-                        VALUES(""" + str(filename) + "," + str(timestamp) + "," + str(x) + "," + str(y) + "," + str(
-                z) + "," + str(angle) + """
-                    );"""
+            rospy.loginfo("Executing SQL")
+
+            sql = "INSERT INTO obstacle(filename, timestamp, x, y, z, angle) VALUES(?,?,?,?,?,?);" 
+
+            values = (str(filename), str(timestamp), x, y, z, angle)
+
             try:
-                conn.cursor().execute(sql)
+                conn.cursor().execute(sql, values)
                 conn.commit()
 
                 rospy.loginfo("Saved to database")
             except sqlite3.Error as e:
+                rospy.loginfo("Database error")
                 print(e)
 
             conn.close()
 
-        except sqlite3.Error as e:
-            print.info(e)
+        except Exception as e:
+            rospy.loginfo(e)
 
 #################################################
 # CAMARA
@@ -140,26 +144,33 @@ class Camera:
             rospy.loginfo("Getting obstacle image...")
 
             # toma mensaje del topic (imagen de la camara)
-            image = Image(message.data)
+            image = message
 
 
 
             # convierte el tipo de dato sensor_msgs.Image a uno que pueda manejar opencv
             try:
-                image_cv = self.bridge.imgmsg_to_cv2(image)
+                image_cv = self.bridge.imgmsg_to_cv2(image, "bgr8")
 
                 # guardar imagen como png con opencv y timestamp
-                timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%m-%S")
                 filename = self.image_path + "/image_" + timestamp + ".png"
+                rospy.loginfo(filename)
                 cv2.imwrite(filename, image_cv)
                 rospy.loginfo("Saved image: " + filename)
 
                 # guarda imagen y datos en la db
                 self.db.save_image(self.current_pose, filename, timestamp)
 
-            except AttributeError:  # catch
+            except AttributeError as e:  # catch
+                rospy.loginfo(e)
                 rospy.loginfo("Couldn't take obstacle image")
 
+            except Exception as e:
+                rospy.loginfo(e)
+                rospy.loginfo("Couldn't take obstacle image")
+
+            self.take_image = False
 
 #################################################
 # CLASE PRINCIPAL - COMUNICACION CON MOVE_BASE
@@ -230,7 +241,7 @@ class MoveBaseSquare():
         square_length = rospy.get_param('move_base_square/sq_length')
 
         # angulos de las esquinas del cuadrado
-        yaweulerangles_seq = [90, 180, 270, 0]
+        yaweulerangles_seq = [0, 90, 180, 270]
         # lista de quaternions (orientacion) para las pose
         quat_seq = list()
 
