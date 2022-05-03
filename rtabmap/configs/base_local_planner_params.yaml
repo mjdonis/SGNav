@@ -1,20 +1,24 @@
 TrajectoryPlannerROS:
   # (default: 0.5) Maximum translational acceleration of the robot in meters/sec^2
-  acc_lim_x:  0.75
+  #acc_lim_x:  1.0
+  acc_lim_x:  5.5
   # (default: 0.5) Maximum strafing acceleration of the robot
-  acc_lim_y:  0.75
+  #acc_lim_y:  1.0
+  acc_lim_y:  8.0
   # (default: 0.5) Maximum angular acceleration of the robot in radians/sec^2
-  acc_lim_theta: 4.00
+  #acc_lim_theta: 1.0
+  acc_lim_theta: 25.0
   # (default: 0.4) Maximum translational velocity of the robot in meters/sec
-  max_vel_x:  0.500
+  #max_vel_x:  0.4
+  max_vel_x:  1.1
   # (default: 0.1) The minimum forward velocity allowed for the base in meters/sec.
   # It is useful to specify this to guarantee that velocity commands sent to a mobile base
   # are high enough to allow the base to overcome friction.
-  min_vel_x:  0.400
+  min_vel_x:  0.1
   # (default: -0.1) Speed used for driving during escapes in meters/sec.
   # Note that it must be negative in order for the robot to actually reverse.
   # A positive speed will cause the robot to move forward while attempting to escape
-  escape_vel: -0.40
+  escape_vel: -0.1
   # (default: true) Determines whether velocity commands are generated for a holonomic
   # or non-holonomic robot. For holonomic robots, strafing velocity commands may be issued
   # to the base. For non-holonomic robots, no strafing velocity commands will be issued.
@@ -22,32 +26,32 @@ TrajectoryPlannerROS:
 
   # (default: 0.10) The tolerance in meters for the controller in the x & y distance
   # when achieving a goal
-  xy_goal_tolerance:  0.45
+  xy_goal_tolerance:  0.35
   # (default: 0.05) The tolerance in radians for the controller in yaw/rotation
   # when achieving its goal
-  yaw_goal_tolerance: 0.25
+  yaw_goal_tolerance: 0.45
 
   # (default: 1.0) The amount of time to forward-simulate trajectories in seconds
-  sim_time: 2.0
+  sim_time: 1.5
   # (default: 0.025) The step size, in meters, to take between points on a given trajectory
   sim_granularity: 0.025
   # (default: 3) The number of samples to use when exploring the x velocity space
-  vx_samples: 3
+  vx_samples: 5
   # (default: 20) The number of samples to use when exploring the theta velocity space
-  vtheta_samples: 20
+  vtheta_samples: 30
 
   # (default: 24.0) The weighting for how much the controller should attempt to reach
   # its local goal, also controls speed
-  goal_distance_bias: 0.8
+  goal_distance_bias: 24.0
   # (default: 32.0) The weighting for how much the controller should stay close
   # to the path it was given
-  path_distance_bias: 0.6
+  path_distance_bias: 28.0
   # (default: 0.01) The weighting for how much the controller should attempt
   # to avoid obstacles
-  occdist_scale: 0.01
+  occdist_scale: 0.05
   # (default: 0.325) How far to look ahead in meters when scoring different
   # in-place-rotation trajectories
-  heading_lookahead: 0.325
+  heading_lookahead: 0.225
   # (default: true) Whether to use the Dynamic Window Approach (DWA) or whether
   # to use Trajectory Rollout (NOTE: In our experience DWA worked as well as
   # Trajectory Rollout and is computationally less expensive. It is possible that

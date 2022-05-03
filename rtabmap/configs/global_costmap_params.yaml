@@ -4,9 +4,9 @@
       # (default: "base_link") The name of the frame for the base link of the robot.
       robot_base_frame: base_link
       # (default: 5.0) The frequency in Hz for the map to be updated.
-      update_frequency: 1.0
+      update_frequency: 3.0
       # (default: 0.0) The frequency in Hz for the map to be publish display information.
-      publish_frequency: 0.5
+      publish_frequency: 0.25
 
       static_map: true
 
