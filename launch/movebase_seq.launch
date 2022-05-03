@@ -3,7 +3,7 @@
 <!-- Launch del nodo MoveBaseSeq y carga de secuencia de puntos en parametros ROS -->
 
     <!-- Correr el nodo move_base_seqs -->
-        <node pkg="simple_navigation_goals" type="move_base_seq" name="move_base_seq" output="screen">
+        <node pkg="sgnav" type="move_base_seq" name="move_base_seq" output="screen">
         
         <!-- Cargar secuencia de puntos en parametros ROS (coordenadas cartesianas en metros) -->
         <!-- En relacion al punto inicial donde esta el robot -->
@@ -13,6 +13,9 @@
             <rosparam param="p_seq">[3,0,0,3,3,0,0,3,0,0,0,0]</rosparam>
         <!-- Cargar secuencia de angulos en el eje vertical (yaw angles, solo rotacion en z, en grados) -->
             <rosparam param="yea_seq">[90,180,270,0]</rosparam>
+            <rosparam param="camera_topic">/camera/color/image_raw</rosparam>
+            <rosparam param="movebase_topic">/planner/move_base</rosparam>
+            <rosparam param="rviz_topic">/visualization_marker</rosparam>
 
         </node>
 
