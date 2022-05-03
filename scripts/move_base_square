@@ -69,11 +69,10 @@ class Database:
             y = p.y
             z = p.z
 
-            #q = Quaternion()
-            #q = current_pose.orientation
-            #euler = euler_from_quaternion(q)
-            #angle = euler[2] / (math.pi * 180)
-            angle = 180
+            q = Quaternion()
+            q = current_pose.orientation
+            (roll, pitch, yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
+            angle = yaw / (math.pi / 180)
 
             rospy.loginfo("Executing SQL")
 
