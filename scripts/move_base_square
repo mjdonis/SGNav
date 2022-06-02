@@ -145,8 +145,6 @@ class Camera:
             # toma mensaje del topic (imagen de la camara)
             image = message
 
-
-
             # convierte el tipo de dato sensor_msgs.Image a uno que pueda manejar opencv
             try:
                 image_cv = self.bridge.imgmsg_to_cv2(image, "bgr8")
@@ -238,6 +236,8 @@ class MoveBaseSquare():
         """Inicializa las poses que tiene que recorrer el robbot en una lista"""
         # toma largo del cuadrado fijado en el launch
         square_length = rospy.get_param('move_base_square/sq_length')
+        # toma orientacion del cuadrado fijado en el launch
+        square_orientation = rospy.get_param('move_base_square/sq_orientation')
 
         # angulos de las esquinas del cuadrado
         yaweulerangles_seq = [0, 90, 180, 270]
@@ -251,18 +251,32 @@ class MoveBaseSquare():
 
         # genera lista de puntos cada 1 metro recorriendo el cuadrado
         # cambiando la orientacion cuando llega a la esquina
+        # esta parte es igual para ambas orientaciones, solo va hacia adelante
         for i in range(1, square_length + 1):
             self.pose_seq.append(Pose(Point(i, 0, 0), quat_seq[0]))
 
-        for i in range(1, square_length + 1):
-            self.pose_seq.append(Pose(Point(square_length, i, 0), quat_seq[1]))
+        # verifica orientacion
+        if square_orientation == "R":
+            for i in range(1, square_length + 1):
+                self.pose_seq.append(Pose(Point(square_length, -i, 0), quat_seq[1]))
 
-        # en los que decrece tomo el num 0, sino queda un punto duplicado y falta el del 0
-        for i in reversed(range(0, square_length)):
-            self.pose_seq.append(Pose(Point(i, square_length, 0), quat_seq[2]))
+            # en los que decrece tomo el num 0, sino queda un punto duplicado y falta el del 0
+            for i in reversed(range(0, square_length)):
+                self.pose_seq.append(Pose(Point(i, -square_length, 0), quat_seq[2]))
 
-        for i in reversed(range(0, square_length)):
-            self.pose_seq.append(Pose(Point(0, i, 0), quat_seq[3]))
+            for i in reversed(range(0, square_length)):
+                self.pose_seq.append(Pose(Point(0, -i, 0), quat_seq[3]))
+        else:
+            # por defecto va hacia la izquierda
+            for i in range(1, square_length + 1):
+                self.pose_seq.append(Pose(Point(square_length, i, 0), quat_seq[1]))
+
+            # en los que decrece tomo el num 0, sino queda un punto duplicado y falta el del 0
+            for i in reversed(range(0, square_length)):
+                self.pose_seq.append(Pose(Point(i, square_length, 0), quat_seq[2]))
+
+            for i in reversed(range(0, square_length)):
+                self.pose_seq.append(Pose(Point(0, i, 0), quat_seq[3]))
 
     def init_markers(self):
         """Parametros para inicializar los marcadores de rviz"""
