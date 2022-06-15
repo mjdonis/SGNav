@@ -1,5 +1,4 @@
 <launch>
-
 <!-- Launch del nodo MoveBaseSeq y carga de secuencia de puntos en parametros ROS -->
 
     <!-- Correr el nodo move_base_seqs -->
@@ -16,7 +15,6 @@
             <rosparam param="camera_topic">/camera/color/image_raw</rosparam>
             <rosparam param="movebase_topic">/planner/move_base</rosparam>
             <rosparam param="rviz_topic">/visualization_marker</rosparam>
-
         </node>
 
 </launch>

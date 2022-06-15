@@ -15,6 +15,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from visualization_msgs.msg import Marker
 
+
 #################################################
 # BASE DE DATOS
 #################################################
@@ -70,25 +71,28 @@ class Database:
 
             q = Quaternion()
             q = current_pose.orientation
-            euler = euler_from_quaternion(q)
-            angle = euler[2] / (math.pi * 180)
+            (roll, pitch, yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
+            angle = yaw / (math.pi / 180)
 
-            sql = """INSERT INTO obstacle(filename, timestamp, x, y, z, angle)
-                        VALUES(""" + str(filename) + "," + str(timestamp) + "," + str(x) + "," + str(y) + "," + str(
-                z) + "," + str(angle) + """
-                    );"""
+            rospy.loginfo("Executing SQL")
+
+            sql = "INSERT INTO obstacle(filename, timestamp, x, y, z, angle) VALUES(?,?,?,?,?,?);"
+
+            values = (str(filename), str(timestamp), x, y, z, angle)
+
             try:
-                conn.cursor().execute(sql)
+                conn.cursor().execute(sql, values)
                 conn.commit()
 
                 rospy.loginfo("Saved to database")
             except sqlite3.Error as e:
+                rospy.loginfo("Database error")
                 print(e)
 
             conn.close()
 
-        except sqlite3.Error as e:
-            print.info(e)
+        except Exception as e:
+            rospy.loginfo(e)
 
 #################################################
 # CAMARA
@@ -97,7 +101,7 @@ class Database:
 class Camera:
     """Manejo de la camara (generico)"""
     def __init__(self):
-        camera_topic = rospy.get_param('move_base_square/camera_topic')
+        camera_topic = rospy.get_param('move_base_seq/camera_topic')
 
         # crea subscriber al topic de la camara para tomar imagen
         self.sub = rospy.Subscriber(camera_topic, Image, callback=self.get_image)
@@ -139,22 +143,31 @@ class Camera:
             rospy.loginfo("Getting obstacle image...")
 
             # toma mensaje del topic (imagen de la camara)
-            image = message.data
+            image = message
+
             # convierte el tipo de dato sensor_msgs.Image a uno que pueda manejar opencv
-            image_cv = self.bridge.imgmsg_to_cv2(image)
+            try:
+                image_cv = self.bridge.imgmsg_to_cv2(image, "bgr8")
 
-            # guardar imagen como png con opencv y timestamp
-            timestamp = datetime.datetime.now().strftime("%Y/%m/%d_%H-%m-%S")
-            filename = self.image_path + "/image_" + timestamp + ".png"
-            cv2.imwrite(filename, image_cv)
-            rospy.loginfo("Saved image: " + filename)
+                # guardar imagen como png con opencv y timestamp
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%m-%S")
+                filename = self.image_path + "/image_" + timestamp + ".png"
+                rospy.loginfo(filename)
+                cv2.imwrite(filename, image_cv)
+                rospy.loginfo("Saved image: " + filename)
 
-            # guarda imagen y datos en la db
-            self.db.save_image(self.current_pose, filename, timestamp)
+                # guarda imagen y datos en la db
+                self.db.save_image(self.current_pose, filename, timestamp)
 
-            # vuelve a dejar el flag en False hasta que haya que guardar otra foto
+            except AttributeError as e:  # catch
+                rospy.loginfo(e)
+                rospy.loginfo("Couldn't take obstacle image")
+
+            except Exception as e:
+                rospy.loginfo(e)
+                rospy.loginfo("Couldn't take obstacle image")
+
             self.take_image = False
-
 
 #################################################
 # CLASE PRINCIPAL - COMUNICACION CON MOVE_BASE
@@ -171,6 +184,9 @@ class MoveBaseSeq():
         # contador para ver cuantas poses ya mando, y si faltan
         self.goal_cnt = 0
 
+        # crea el cuadrado de pose que tiene que recorrer el robot
+        self.init_poses()
+
         # Inicializa los markers para rviz (lista y cosas esteticas)
         rospy.loginfo("Setting up rviz markers...")
         self.init_markers()
@@ -185,7 +201,7 @@ class MoveBaseSeq():
         # inicializa la camara (y db)
         self.camera = Camera()
 
-        movebase_topic = rospy.get_param('move_base_square/movebase_topic')
+        movebase_topic = rospy.get_param('move_base_seq/movebase_topic')
         # Crea action client: primer arg es el namespace de los topics (namespace/goal, namespace/feedback, etc...)
         # MoveBaseAction es el tipo de accion que intercambian a traves de los topics
         self.client = actionlib.SimpleActionClient(movebase_topic,MoveBaseAction)
@@ -213,7 +229,7 @@ class MoveBaseSeq():
         goal.target_pose.pose = self.pose_seq[self.goal_cnt]
         rospy.loginfo("Sending goal pose "+str(self.goal_cnt+1)+" to Action Server")
         rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
-        self.client.send_goal(goal, self.done_cb, self.active_cb, self.feedback_cb)
+        self.client.send_goal(goal, self.done_cb, self.active_cb)
         rospy.spin()
 
     def init_poses(self):
@@ -254,7 +270,7 @@ class MoveBaseSeq():
         marker_color = {'r': 1.0, 'g': 0.7, 'b': 1.0, 'a': 1.0}
 
         # define el publisher de los markers, nombre y tipo de dato que publica
-        rviz_topic = rospy.get_param('move_base_square/rviz_topic')
+        rviz_topic = rospy.get_param('move_base_seq/rviz_topic')
         self.marker_pub = rospy.Publisher(rviz_topic, Marker, queue_size=100)
 
         # inicializa la lista de markers
@@ -301,30 +317,20 @@ class MoveBaseSeq():
 
         if status == 3:
             # SUCCEEDED
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached")
+            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" reached successfully")
             # Si llego al goal, pasa al siguiente
             self.send_next_goal()
 
         if status == 4:
             # ABORTED: aborted during execution by the action server due to some failure
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" was aborted by the Action Server")
-
-            # pasa la pose e indica que hay que tomar la foto y guardarla
-            self.camera.set_current_pose(self.pose_seq[self.goal_cnt-1])
-            self.camera.take_image = True
-
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" aborted, trying next goal")
+            rospy.loginfo("Trying next goal")
             self.send_next_goal()
 
         if status == 5:
             # REJECTED: rejected by the action server without being processed, was unattainable or invalid
             rospy.loginfo("Goal pose "+str(self.goal_cnt)+" has been rejected by the Action Server")
-
-            # pasa la pose a la camara e indica que hay que tomar la foto y guardarla
-            self.camera.set_current_pose(self.pose_seq[self.goal_cnt-1])
-            self.camera.take_image = True
-
-            rospy.loginfo("Goal pose "+str(self.goal_cnt)+" rejected, trying next goal")
+            rospy.loginfo("Trying next goal")
             self.send_next_goal()
 
         if status == 8:
@@ -333,6 +339,10 @@ class MoveBaseSeq():
 
     def send_next_goal(self):
         """Envia el siguiente goal al cliente o termina la ejecucion si no quedan mas goals"""
+        # pasa la pose e indica que hay que tomar la foto y guardarla
+        self.camera.set_current_pose(self.pose_seq[self.goal_cnt - 1])
+        self.camera.take_image = True
+
         # Verifica si ya proceso todos los goals, si faltan pasa al siguiente, sino termina
         if self.goal_cnt < len(self.pose_seq):
             self.marker_pub.publish(self.markers)
@@ -340,7 +350,7 @@ class MoveBaseSeq():
             next_goal.target_pose.header.frame_id = "map"
             next_goal.target_pose.header.stamp = rospy.Time.now()
             next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
-            rospy.loginfo("Sending goal pose "+str(self.goal_cnt+1)+" to Action Server")
+            rospy.loginfo("Sending goal pose "+str(self.goal_cnt + 1)+" to Action Server")
             rospy.loginfo(str(self.pose_seq[self.goal_cnt]))
             self.client.send_goal(next_goal, self.done_cb, self.active_cb)
         else:
